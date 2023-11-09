@@ -1,7 +1,9 @@
 import tkinter as tk
 
+import matplotlib.pyplot
 import scipy.fft
 import librosa
+import sklearn.preprocessing
 from playsound import playsound
 import numpy as np
 from scipy.io.wavfile import write
@@ -25,8 +27,6 @@ def fft_of_file(fname: str):
     # Create the spectrogram
     spectrogram = librosa.stft(audio)
     plot_fft(data=audio, sr=sr)
-
-    plot_autocorrelation(data=audio, sr=sr)
     # # Plot the STFT
     # D = np.abs(librosa.stft(audio))
     # # fig, ax = plt.subplots(nrows=2, ncols=1, sharex=True)
@@ -37,11 +37,20 @@ def fft_of_file(fname: str):
     #              # format="%+2.f dB"
     #              )
 
-def plot_autocorrelation(data, sr):
-    ac = librosa.autocorrelate(data)
-    plt.figure()
-    librosa.display.specshow(ac, sr=sr, y_axis='log', x_axis='time')
-    plt.colorbar(format='%+2.0f dB')
+def autocorrelation(data, sr):
+    ac = librosa.autocorrelate(data)[1:]
+    x_ticks = [sr // (i + 1) for i in range(len(ac))]
+    # for x, y in zip(x_ticks, ac):
+    #     plt.plot([x], [y])
+    # plt.xscale('log')
+    x_ticks = [(512**i) for i in range(5)]
+    plt.xticks(x_ticks, labels=x_ticks)
+    print(x_ticks)
+    y_ticks = [ac[sr // x] for x in x_ticks]
+    data = {'x': x_ticks, 'y': ac}
+    # plt.plot(x_ticks, y_ticks)
+    example_data = [4096, 512, 1024, 2048]
+    plt.plot(example_data, [200, -700, 700, -700])
     plt.show()
 
 
@@ -97,7 +106,8 @@ def violin_sound(window: int,
 
 def violin_sound_v2(window: int,
                  formant_width: int = 100,
-                 fundamental: int = 256):
+                 fundamental: int = 256,
+                    plot=True):
     """ Plays a violin sound with the duration of the given window size in milliseconds.
     Args:
         window (int): The duration in milliseconds.
@@ -117,32 +127,61 @@ def violin_sound_v2(window: int,
     t = np.linspace(0, length, length * bitrate, dtype=np.float32)
     magnitudes = []
     sample_data, sample_sr = librosa.load(os.path.join('external_samples', 'violin_solo.wav'))
+    ac = librosa.autocorrelate(sample_data)
+    stft = np.abs(librosa.stft(sample_data, win_length=bitrate*1, n_fft=bitrate*1))
+    # librosa.display.specshow(stft, sr=sample_sr, x_axis='time', y_axis='log')
+    # plt.show()
+    # autocorrelation(data=sample_data, sr=sample_sr)
     for f in range(1, 31):
-        magnitudes.append(librosa.autocorrelate(sample_data, f=(f*fundamental)))
+        magnitudes.append(np.max(stft[(f * fundamental)]))
+    # for i, m in enumerate(magnitudes[15:]):
+    #     magnitudes[i] = m * (0.75**(i - 15))
     components = []
     for f, level in enumerate(magnitudes):
         frequency = fundamental * (f + 1)
         components.append(level * np.sin(2 * np.pi * frequency * t))
         print(f"Harmonic {f + 1} at {frequency} Hz with magnitude {level}")
-    final_wave = np.sum(components, axis=0)
+    final_wave = np.sum(components, axis=0).astype(np.float32)
+    min = np.min(final_wave)
+    max = np.max(final_wave)
+    scaled_wave = []
+    for bit in final_wave:
+        scaled_wave.append(((bit - min) / (max - min)) * 2 - 1)
+    if plot:
+        plt.plot(final_wave[:1000])
+        plt.show()
+        plt.plot(scaled_wave[:1000])
+        plt.show()
 
     # save to wave file
-    write("violin.wav", bitrate, final_wave)
-    return final_wave, bitrate
+    # os.remove("violin.wav")
+    # write("violin.wav", bitrate, final_wave)
+    from sklearn.preprocessing import normalize
+    write("new_violin.wav", bitrate, scaled_wave)
+    ret_data, ret_sr = librosa.load("new_violin.wav")
+    plt.plot(ret_data[:1000])
+    plt.show()
+    return ret_data, ret_sr
 
 
 
 if __name__ == "__main__":
-    fft_of_file(os.path.join(
-        # os.path.pardir,
-        "external_samples",
-        "violin_solo.wav"))
-    # our_version, our_bitrate = violin_sound_v2(window=3000)
-    # plot_fft(data=our_version, sr=our_bitrate)
+    # fft_of_file(os.path.join(
+    #     # os.path.pardir,
+    #     "external_samples",
+    #     "violin_solo.wav"))
+    our_version, our_bitrate = violin_sound_v2(window=1000)
+    plot_fft(data=our_version, sr=our_bitrate)
+    import simpleaudio as sa
+    play_obj = sa.play_buffer(our_version, 1, 3, our_bitrate)
+    play_obj.wait_done()
     # audio, sr = librosa.load(os.path.join("external_samples", "violin_solo.wav"))
     # D = np.abs(librosa.stft(audio, n_fft))
     # plt.figure()
     # librosa.display.specshow(D, sr=sr, y_axis='log', x_axis='time')
     # plt.colorbar(format='%+2.0f dB')
     # plt.show()
-    # playsound("violin.wav")
+    # playsound(os.path.join(
+    #     # os.path.pardir,
+    #     "external_samples",
+    #     "violin_solo.wav"))
