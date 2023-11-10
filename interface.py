@@ -177,6 +177,7 @@ def violin_sound_v2(window: int,
 def violin_sound_v3(window: int,
                  formant_width: int = 100,
                  fundamental: int = 256,
+                    fname="violin.wav",
                     plot=True):
     """ Plays a violin sound with the duration of the given window size in milliseconds.
     Args:
@@ -226,7 +227,7 @@ def violin_sound_v3(window: int,
         frequency = fundamental * (f + 1)
         db_level = level
         level = librosa.db_to_amplitude(level)
-        print(f"Harmonic {f + 1} at {frequency} Hz with amplitude {level} based on db of {db_level}")
+        #print(f"Harmonic {f + 1} at {frequency} Hz with amplitude {level} based on db of {db_level}")
 
         if formant_width != 0:
             local_width = formant_width * f
@@ -256,10 +257,11 @@ def violin_sound_v3(window: int,
     # write("violin.wav", bitrate, final_wave)
     from sklearn.preprocessing import normalize
 
-    write(os.path.join("created_samples", "new2_violin.wav"), bitrate, scaled_wave)
-    ret_data, ret_sr = librosa.load("new2_violin.wav")
-    plt.plot(ret_data[:1000])
-    plt.show()
+    write(os.path.join("created_samples", fname), bitrate, scaled_wave)
+    if plot:
+        ret_data, ret_sr = librosa.load(fname)
+        plt.plot(ret_data[:1000])
+        plt.show()
     return final_wave, bitrate
 
 
@@ -269,14 +271,19 @@ if __name__ == "__main__":
     #     # os.path.pardir,
     #     "external_samples",
     #     "violin_solo.wav"))
+    import simpleaudio as sa
+    versions = []
     for i in range(10):
         our_version, our_bitrate = violin_sound_v3(window=1000,
                                                    formant_width=i * 5,
-                                                   plot=False)
+                                                   plot=False,
+                                                   fname=f'violin_width_{i * 5}.wav')
+        versions.append((our_version, our_bitrate))
         plot_fft(data=our_version, sr=our_bitrate)
-        import simpleaudio as sa
-        play_obj = sa.play_buffer(our_version, 1, 4, our_bitrate)
-        play_obj.wait_done()
+    while input("Play again?") != "n":
+        for sound, sr in versions:
+            play_obj = sa.play_buffer(our_version, 1, 4, our_bitrate)
+            play_obj.wait_done()
 
     audio, sr = librosa.load(os.path.join("external_samples", "violin_solo.wav"))
     sample_fft = plot_fft(data=audio, sr=sr)
