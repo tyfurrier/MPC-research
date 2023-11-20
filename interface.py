@@ -201,6 +201,8 @@ def violin_sound_v3(window: int,
     collection_radius = 0.5
     collection_frequency_up = librosa.midi_to_hz(librosa.hz_to_midi(fundamental) + collection_radius) - fundamental
     collection_frequency_down = fundamental - librosa.midi_to_hz(librosa.hz_to_midi(fundamental) - collection_radius)
+
+    components = []
     for f in range(1, bitrate//2//fundamental - 1):
     # for f in range(1, 2):
         frequency = fundamental * f
@@ -222,18 +224,19 @@ def violin_sound_v3(window: int,
                 break
             magnitude_data.append(np.average(stft[hz]))  # todo: this hz isn't doing anything, try dividing by 4. need to map to the right frequency
         magnitudes.append(np.average(magnitude_data))  # switch sum/average
-    components = []
     for f, level in enumerate(magnitudes):
         frequency = fundamental * (f + 1)
         db_level = level
         level = librosa.db_to_amplitude(level)
         #print(f"Harmonic {f + 1} at {frequency} Hz with amplitude {level} based on db of {db_level}")
 
-        if formant_width != 0:
+        if formant_width != 0:  # this is where we widen partials
+            components_of_partial =[]
             local_width = formant_width * f
             local_level = level/(local_width*2)
             for hz in range(frequency - local_width, frequency + local_width):
-                components.append(local_level * np.sin(2 * np.pi * frequency * t))
+                components_of_partial.append(local_level * np.sin(2 * np.pi * frequency * t))
+            components.append(np.sum(components_of_partial, axis=0))
         else:
             components.append(level * np.sin(2 * np.pi * frequency * t))
 
@@ -251,11 +254,9 @@ def violin_sound_v3(window: int,
     scaled_wave = np.array(scaled_wave).astype(np.int32)
 
     # save to wave file
-    if os.path.exists("created_samples"):
-        shutil.rmtree("created_samples")
-    os.mkdir("created_samples")
-    # write("violin.wav", bitrate, final_wave)
-    from sklearn.preprocessing import normalize
+    # if os.path.exists("created_samples"):
+    #     shutil.rmtree("created_samples")
+    # os.mkdir("created_samples")
 
     write(os.path.join("created_samples", fname), bitrate, scaled_wave)
     if plot:
@@ -273,7 +274,7 @@ if __name__ == "__main__":
     #     "violin_solo.wav"))
     import simpleaudio as sa
     versions = []
-    for i in range(10):
+    for i in range(1, 8, 2):
         our_version, our_bitrate = violin_sound_v3(window=1000,
                                                    formant_width=i * 5,
                                                    plot=False,
