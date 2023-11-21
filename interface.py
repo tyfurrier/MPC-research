@@ -12,6 +12,23 @@ from scipy.io import wavfile
 from scipy import signal
 import matplotlib.pyplot as plt
 import os, shutil
+from typing import Tuple
+
+class Decomposition:
+    FULL = ""
+    OCTAVE = "octave"
+    HOLLOW = "missing_octave"
+
+def get_cached_wave(f: int, part: Decomposition) -> Tuple[np.ndarray, int]:
+    """ Gets the cached wave from the given frequency and decomposition.
+    Args:
+        f (int): The frequency.
+        part (Decomposition): Whether the get the full, octave or hollowed.
+    Returns:
+        Tuple[np.ndarray, int]: The wave and the sample rate.
+    """
+    fname = os.path.join("created_samples", f"trumpet_pure_{part.value}_{f}.wav")
+    return librosa.load(fname)
 
 
 def fft_of_file(fname: str):
@@ -38,6 +55,7 @@ def fft_of_file(fname: str):
     #              # format="%+2.f dB"
     #              )
 
+
 def autocorrelation(data, sr):
     ac = librosa.autocorrelate(data)[1:]
     x_ticks = [sr // (i + 1) for i in range(len(ac))]
@@ -56,6 +74,7 @@ def autocorrelation(data, sr):
 
 
 def plot_fft(data, sr):
+    data = np.array(data).astype(float)
     D = np.abs(librosa.stft(data))
     plt.figure()
     librosa.display.specshow(librosa.amplitude_to_db(D, ref=np.max), sr=sr, y_axis='log', x_axis='time')
@@ -64,114 +83,81 @@ def plot_fft(data, sr):
     return D
 
 
-
-def violin_sound(window: int,
-                 formant_width: int = 100,
-                 fundamental: int = 256):
-    """ Plays a violin sound with the duration of the given window size in milliseconds.
-    Args:
-        window (int): The duration in milliseconds.
-        formant_width (int): The width of the formant in cents. The percieved magnitude at the formant will be the same
-        but the actual magnitude at fine points in the formant will be different. A formant width of 0 will result in a
-        pure tone at the fundamental. A formant width of 100 should result in frequencies at the f plus and minus 1 and
-        in between.
-        fundamental (int): The fundamental frequency in Hz. Defaults to 440.
-        """
-    db_levels = [60, 50, 45, 50, 43, 48, 37, 48, 30, 20]
-    equation = """
-    db = 20log(y)
-    db = log(y^20)
-    10^db = y^20
-    10^(db/20) = y"""
-    to_magnitude = lambda db: 10 ** (db / 20)
-    partials_magnitude = [to_magnitude(db) for db in db_levels]
-    partials_magnitude = db_levels
-    bitrate = 44100
-    master_vol = 0.0000001
-    freq = 440
-    length = window // 1000
-
-    # create time values
-    t = np.linspace(0, length, length * bitrate, dtype=np.float32)
-    # generate y values for signal
-    y = partials_magnitude[0] * master_vol * np.sin(2 * np.pi * fundamental * t)
-    for harmonic, level in enumerate(partials_magnitude[1:]):
-        harmonic += 1
-        frequency = fundamental * harmonic + fundamental
-        y += level * master_vol * np.sin(2 * np.pi * frequency * t)
-        print(f"Harmonic {harmonic} at {frequency} Hz with magnitude {level}")
-
-    # save to wave file
-    write("violin.wav", bitrate, y)
-    return y, bitrate
-
-def sound_oscillators(frequencies: list, magnitudes: list, length: int, bitrate: int = 44100):
-    pass
+def pure_tone_synthesizer(fundamental: int,
+                          harmonic_decibels: list = None,
+                          plot: bool = False,
+                          bitrate: int = 44100,
+                          normalize: bool = True,
+                          custom_minmax: tuple = None) -> np.ndarray:
+    """ Returns one second of the fundamental and its harmonics at the given decibel levels.
+    The amplitudes list should include the fundamental and None for -inf decibels."""
+    if harmonic_decibels is None:
+        harmonic_decibels = [0]
+    amplitudes = [librosa.db_to_amplitude(d) if d is not None else None for d in harmonic_decibels]
+    length = 1  # seconds of pure tone to generate
+    t = np.linspace(0, length, length * bitrate)
+    canvas = np.zeros(bitrate)  # one second since we are using integer hz values
+    pure_tone = np.sin(2 * np.pi * fundamental * t)
+    for i in range(len(canvas)):
+        for f, amp in enumerate(amplitudes):
+            if amp is None:
+                continue
+            harmonic = f + 1
+            amplitude = amp * pure_tone[(i * harmonic) % len(pure_tone)]
+            canvas[i] += amplitude
+    full_second = np.array(canvas).astype(np.float32)
+    if normalize:
+        return scale_numpy_wave(wave=full_second, plot=plot, minmax=custom_minmax), bitrate
+    else:
+        return full_second, bitrate
 
 
-def violin_sound_v2(window: int,
-                 formant_width: int = 100,
-                 fundamental: int = 256,
-                    plot=True):
-    """ Plays a violin sound with the duration of the given window size in milliseconds.
-    Args:
-        window (int): The duration in milliseconds.
-        formant_width (int): The width of the formant in cents. The percieved magnitude at the formant will be the same
-        but the actual magnitude at fine points in the formant will be different. A formant width of 0 will result in a
-        pure tone at the fundamental. A formant width of 100 should result in frequencies at the f plus and minus 1 and
-        in between.
-        fundamental (int): The fundamental frequency in Hz. Defaults to 440.
-        """
+def trumpet_harmonic_decibels():
+    decibels = [-22, -19, -21.5, -26,
+                -25, -28, -27, -27,
+                -28, -32.5, -38] \
+               + [(-65 - -38) / 10 * (i + 1) - 38 for i in range(10)] \
+               + [(-92 - -65) / 6 * (i + 1) - 65 for i in range(6)]  # -65 by 10k | -92 by 13k
+    return decibels
 
-    bitrate = 44100
-    length = window // 1000
 
-    # create time values
-    t = np.linspace(0, length, length * bitrate, dtype=np.float32)
-    magnitudes = []
-    sample_data, sample_sr = librosa.load(os.path.join('external_samples', 'violin_solo.wav'))
-    stft = np.abs(librosa.stft(sample_data, n_fft=bitrate, win_length=bitrate))
-    # stft = plot_fft(data=sample_data, sr=sample_sr)
-    for f in range(1, bitrate//2//fundamental - 1):
-        frequency = fundamental * f
-        semi_down = math.floor(librosa.midi_to_hz(librosa.hz_to_midi(frequency) - 1))
-        semi_up = math.ceil(librosa.midi_to_hz(librosa.hz_to_midi(frequency) + 1))
-        magnitude_data = []
-        for hz in range(semi_down, semi_up):
-            if hz >= stft.shape[0]:
-                break
-            magnitude_data.append(np.sum(stft[hz]))  # todo: this hz isn't doing anything, try dividing by 4. need to map to the right frequency
-        magnitudes.append(np.average(magnitude_data))
-    components = []
-    for f, level in enumerate(magnitudes):
-        frequency = fundamental * (f + 1)
-        components.append(level * np.sin(2 * np.pi * frequency * t))
-        print(f"Harmonic {f + 1} at {frequency} Hz with magnitude {level}")
-    final_wave = np.sum(components, axis=0).astype(np.float32)
-    min = np.min(final_wave)
-    max = np.max(final_wave)
+def trumpet_sound(frequency: int,
+                  bitrate: int = 44100,
+                  plot: bool = False,
+                  normalize: bool = True,) -> np.ndarray:
+    """ Returns a list of amplitudes for one second of a trumpet playing the given frequency"""
+    amplitudes = [1.0,
+                  0.8, 0.22, 0.4,
+                  0.55
+                  ]
+    amplitudes = [0.36, 0.6, 0.23, 1, 0.7, 0.55, 0.18, 0.3, 0.05, 0.06]
+    decibels = trumpet_harmonic_decibels()
+    return pure_tone_synthesizer(fundamental=frequency,
+                                 harmonic_decibels=decibels,
+                                 plot=plot,
+                                 bitrate=bitrate,
+                                 normalize=normalize,
+                                 )
+
+
+def scale_numpy_wave(wave: np.ndarray, plot: bool = False,
+                     minmax: tuple = None) -> np.ndarray:
+    """ scales a numpy wave and returns it in int32 -2147483648 to 2147483647"""
+    if minmax is None:
+        min_a = np.min(wave)
+        max_a = np.max(wave)
+    else:
+        min_a, max_a = minmax
     scaled_wave = []
-    for bit in final_wave:
-        scaled_wave.append((((bit - min) / (max - min)) * 2 - 1) * 2147483647)
+    for bit in wave:
+        scaled_wave.append((((bit - min_a) / (max_a - min_a)) * 2 - 1))
     if plot:
-        plt.plot(final_wave[:1000])
+        plt.plot(scaled_wave[:1000])
         plt.show()
         plt.plot(scaled_wave[:1000])
         plt.show()
-    scaled_wave = np.array(scaled_wave).astype(np.int32)
-
-    # save to wave file
-    if os.path.exists("created_samples"):
-        shutil.rmtree("created_samples")
-    os.mkdir("created_samples")
-    # write("violin.wav", bitrate, final_wave)
-    from sklearn.preprocessing import normalize
-
-    write(os.path.join("created_samples", "new2_violin.wav"), bitrate, scaled_wave)
-    ret_data, ret_sr = librosa.load("new2_violin.wav")
-    plt.plot(ret_data[:1000])
-    plt.show()
-    return ret_data, ret_sr
+    scaled_wave = np.array(scaled_wave).astype(np.float32)
+    return scaled_wave
 
 
 def violin_sound_v3(window: int,
@@ -241,17 +227,7 @@ def violin_sound_v3(window: int,
             components.append(level * np.sin(2 * np.pi * frequency * t))
 
     final_wave = np.sum(components, axis=0).astype(np.float32)
-    min = np.min(final_wave)
-    max = np.max(final_wave)
-    scaled_wave = []
-    for bit in final_wave:
-        scaled_wave.append((((bit - min) / (max - min)) * 2 - 1) * 2147483647)
-    if plot:
-        plt.plot(final_wave[:1000])
-        plt.show()
-        plt.plot(scaled_wave[:1000])
-        plt.show()
-    scaled_wave = np.array(scaled_wave).astype(np.int32)
+    scaled_wave = scale_numpy_wave(final_wave, plot=plot)
 
     # save to wave file
     # if os.path.exists("created_samples"):
@@ -263,34 +239,63 @@ def violin_sound_v3(window: int,
         ret_data, ret_sr = librosa.load(fname)
         plt.plot(ret_data[:1000])
         plt.show()
-    return final_wave, bitrate
+    return scaled_wave, bitrate
+
+def trumpet_missing_octave(frequency: int = 440, bitrate: int = 44100):
+    import simpleaudio as sa
+    to_write = []
+
+    d = trumpet_harmonic_decibels()
+    octave_decibels = [d[i] if i % 2 == 1 else None for i in range(len(d))]
+    missing_octave_decibels = d.copy()
+    for i in range(1, len(missing_octave_decibels), 2):
+        missing_octave_decibels[i] = None
+    print("octave", octave_decibels)
+    print("missing octave", missing_octave_decibels)
+    print("base decibels", d)
+    check_min_max = lambda x, m: print(f"{m} Min: {np.min(x)}, {m} Max: {np.max(x)}")
+    full_minmax = (-0.25772929191589355, 0.27012863755226135)
+    # full_minmax = (-0.275, 0.275)  # todo I think it's precautionary to use
+
+    missing_octave, bitrate = pure_tone_synthesizer(fundamental=frequency,
+                                                    harmonic_decibels=missing_octave_decibels,
+                                                    bitrate=bitrate,
+                                                    plot=False,
+                                                    normalize=False)
+    to_write.append((missing_octave, f"trumpet_pure_missing_octave_{frequency}.wav"))
 
 
+    trumpet_octave, bitrate = pure_tone_synthesizer(fundamental=frequency,
+                                                    harmonic_decibels=octave_decibels,
+                                                    normalize=False)
+    to_write.append((trumpet_octave, f"trumpet_pure_octave_{frequency}.wav"))
+
+    trumpet, bitrate = trumpet_sound(frequency=frequency,
+                                     normalize=False)
+    to_write.append((trumpet, f"trumpet_pure_{frequency}.wav"))
+
+    reconstructed = missing_octave + trumpet_octave
+    check_min_max(missing_octave, "minus octave")
+    check_min_max(trumpet_octave, "octave")
+    check_min_max(reconstructed, "reconstructed")
+    check_min_max(trumpet, "original")
+    plot = False
+    if plot:
+        plot_fft(trumpet_octave, bitrate)
+        plot_fft(missing_octave, bitrate)
+        plot_fft(trumpet, bitrate)
+    assert np.allclose(reconstructed, trumpet)
+    for wave, fname in to_write:
+        write(os.path.join("created_samples", fname), bitrate, wave)
 
 if __name__ == "__main__":
     # fft_of_file(os.path.join(
     #     # os.path.pardir,
     #     "external_samples",
     #     "violin_solo.wav"))
-    import simpleaudio as sa
-    versions = []
-    for i in range(1, 8, 2):
-        our_version, our_bitrate = violin_sound_v3(window=1000,
-                                                   formant_width=i * 5,
-                                                   plot=False,
-                                                   fname=f'violin_width_{i * 5}.wav')
-        versions.append((our_version, our_bitrate))
-        plot_fft(data=our_version, sr=our_bitrate)
-    while input("Play again?") != "n":
-        for sound, sr in versions:
-            play_obj = sa.play_buffer(our_version, 1, 4, our_bitrate)
-            play_obj.wait_done()
-
-    audio, sr = librosa.load(os.path.join("external_samples", "violin_solo.wav"))
-    sample_fft = plot_fft(data=audio, sr=sr)
-    inverse = librosa.istft(sample_fft)
-    play_obj = sa.play_buffer(inverse, 1, 4, sr)
-    play_obj.wait_done()
+    for f in range(409, 471):
+        trumpet_missing_octave(frequency=f, bitrate=44100)
+    # old_generation()
     # D = np.abs(librosa.stft(audio, n_fft))
     # plt.figure()
     # librosa.display.specshow(D, sr=sr, y_axis='log', x_axis='time')
