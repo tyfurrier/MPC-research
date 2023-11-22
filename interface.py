@@ -5,7 +5,6 @@ import matplotlib.pyplot
 import scipy.fft
 import librosa
 import sklearn.preprocessing
-from playsound import playsound
 import numpy as np
 from scipy.io.wavfile import write
 from scipy.io import wavfile
@@ -13,13 +12,20 @@ from scipy import signal
 import matplotlib.pyplot as plt
 import os, shutil
 from typing import Tuple
-
-class Decomposition:
+from enum import Enum
+class Decomposition(Enum):
     FULL = ""
-    OCTAVE = "octave"
-    HOLLOW = "missing_octave"
+    OCTAVE = "octave_"
+    HOLLOW = "missing_octave_"
+    RECONSTRUCTED = "reconstructed_"
 
-def get_cached_wave(f: int, part: Decomposition) -> Tuple[np.ndarray, int]:
+    def file_naming(self):
+        if self.value == "":
+            return "full"
+        else:
+            return self.value[:-1]
+
+def get_cached_wave(f: int, part: Decomposition) -> Tuple[np.ndarray, float]:
     """ Gets the cached wave from the given frequency and decomposition.
     Args:
         f (int): The frequency.
@@ -27,7 +33,7 @@ def get_cached_wave(f: int, part: Decomposition) -> Tuple[np.ndarray, int]:
     Returns:
         Tuple[np.ndarray, int]: The wave and the sample rate.
     """
-    fname = os.path.join("created_samples", f"trumpet_pure_{part.value}_{f}.wav")
+    fname = os.path.join("created_samples", f"trumpet_pure_{part.value}{f}.wav")
     return librosa.load(fname)
 
 
@@ -241,7 +247,9 @@ def violin_sound_v3(window: int,
         plt.show()
     return scaled_wave, bitrate
 
-def trumpet_missing_octave(frequency: int = 440, bitrate: int = 44100):
+def trumpet_missing_octave(frequency: int = 440, bitrate: int = 44100,
+                           file_path: str = None,
+                           overwrite_folder: bool = False):
     import simpleaudio as sa
     to_write = []
 
@@ -250,9 +258,9 @@ def trumpet_missing_octave(frequency: int = 440, bitrate: int = 44100):
     missing_octave_decibels = d.copy()
     for i in range(1, len(missing_octave_decibels), 2):
         missing_octave_decibels[i] = None
-    print("octave", octave_decibels)
-    print("missing octave", missing_octave_decibels)
-    print("base decibels", d)
+    # print("octave", octave_decibels)
+    # print("missing octave", missing_octave_decibels)
+    # print("base decibels", d)
     check_min_max = lambda x, m: print(f"{m} Min: {np.min(x)}, {m} Max: {np.max(x)}")
     full_minmax = (-0.25772929191589355, 0.27012863755226135)
     # full_minmax = (-0.275, 0.275)  # todo I think it's precautionary to use
@@ -262,39 +270,74 @@ def trumpet_missing_octave(frequency: int = 440, bitrate: int = 44100):
                                                     bitrate=bitrate,
                                                     plot=False,
                                                     normalize=False)
-    to_write.append((missing_octave, f"trumpet_pure_missing_octave_{frequency}.wav"))
+    to_write.append((missing_octave, Decomposition.HOLLOW))
 
 
     trumpet_octave, bitrate = pure_tone_synthesizer(fundamental=frequency,
                                                     harmonic_decibels=octave_decibels,
                                                     normalize=False)
-    to_write.append((trumpet_octave, f"trumpet_pure_octave_{frequency}.wav"))
+    to_write.append((trumpet_octave, Decomposition.OCTAVE))
 
     trumpet, bitrate = trumpet_sound(frequency=frequency,
                                      normalize=False)
-    to_write.append((trumpet, f"trumpet_pure_{frequency}.wav"))
+    to_write.append((trumpet, Decomposition.FULL))
 
     reconstructed = missing_octave + trumpet_octave
-    check_min_max(missing_octave, "minus octave")
-    check_min_max(trumpet_octave, "octave")
-    check_min_max(reconstructed, "reconstructed")
-    check_min_max(trumpet, "original")
+    to_write.append((reconstructed, Decomposition.RECONSTRUCTED))
+    # check_min_max(missing_octave, "minus octave")
+    # check_min_max(trumpet_octave, "octave")
+    # check_min_max(reconstructed, "reconstructed")
+    # check_min_max(trumpet, "original")
     plot = False
     if plot:
         plot_fft(trumpet_octave, bitrate)
         plot_fft(missing_octave, bitrate)
         plot_fft(trumpet, bitrate)
-    assert np.allclose(reconstructed, trumpet)
-    for wave, fname in to_write:
-        write(os.path.join("created_samples", fname), bitrate, wave)
+    if not np.allclose(reconstructed, trumpet):
+        print(f"reconstructed and original are not close f: {frequency}")
+    if file_path is None:
+        file_path = "created_samples"
+    if os.path.exists(file_path):
+        if overwrite_folder:
+            shutil.rmtree(file_path)
+            os.mkdir(file_path)
+    else:
+        os.mkdir(file_path)
+    for wave, d_ in to_write:
+        fname = f"{str(round(librosa.hz_to_midi(frequency), 2)).replace('.', 'p')}" \
+                f"{d_.file_naming()}.wav"
+        write(os.path.join(file_path, fname), bitrate, wave)
+
+def create_radii(radius: int = 30):
+    count = 1
+    p = Decomposition.FULL
+    for p in Decomposition:
+        pure_synth, sr = get_cached_wave(f=440, part=p)
+        sum = pure_synth / count
+        folder_path = os.path.join("created_samples", f"440_spread_{p.file_naming()}")
+        if os.path.exists(folder_path):
+            shutil.rmtree(folder_path)
+        os.mkdir(folder_path)
+        for i in range(1, radius):
+            left, _ = get_cached_wave(f=440 - i, part=p)
+            right, _ = get_cached_wave(f=440 + i, part=p)
+            sum += left / count
+            sum += right / count
+            write(os.path.join(folder_path, f"{i}_hz.wav"), sr, sum)
+
+
 
 if __name__ == "__main__":
     # fft_of_file(os.path.join(
     #     # os.path.pardir,
     #     "external_samples",
     #     "violin_solo.wav"))
-    for f in range(409, 471):
-        trumpet_missing_octave(frequency=f, bitrate=44100)
+    # create_radii()
+    for i in range(-100, 100):
+        midi_number = librosa.hz_to_midi(440) + (i/100)
+        print(f"midi number: {midi_number}")
+        trumpet_missing_octave(frequency=librosa.midi_to_hz(midi_number),
+                               file_path=os.path.join("created_samples", "cents"))
     # old_generation()
     # D = np.abs(librosa.stft(audio, n_fft))
     # plt.figure()

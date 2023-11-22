@@ -1,0 +1,13 @@
+[project]
+name = "MPC-research"
+version = "0.0.1"
+
+dependencies = [
+    "pysimplegui",
+    "numpy",
+    "librosa",
+    "matplotlib",
+    "scipy",
+    "playsound",
+    "simpleaudio"
+]
