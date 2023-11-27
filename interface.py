@@ -25,7 +25,8 @@ class Decomposition(Enum):
         else:
             return self.value[:-1]
 
-def get_cached_wave(f: int, part: Decomposition) -> Tuple[np.ndarray, float]:
+def get_cached_wave(f: int, part: Decomposition,
+                    cents: int = 0) -> Tuple[np.ndarray, float]:
     """ Gets the cached wave from the given frequency and decomposition.
     Args:
         f (int): The frequency.
@@ -33,7 +34,9 @@ def get_cached_wave(f: int, part: Decomposition) -> Tuple[np.ndarray, float]:
     Returns:
         Tuple[np.ndarray, int]: The wave and the sample rate.
     """
-    fname = os.path.join("created_samples", f"trumpet_pure_{part.value}{f}.wav")
+    midi_number = librosa.hz_to_midi(f) + cents / 100
+    fname = os.path.join("created_samples", "cents", f"{str(midi_number).replace('.', 'p')}"
+                                            f"{part.file_naming()}.wav")
     return librosa.load(fname)
 
 
@@ -308,22 +311,25 @@ def trumpet_missing_octave(frequency: int = 440, bitrate: int = 44100,
                 f"{d_.file_naming()}.wav"
         write(os.path.join(file_path, fname), bitrate, wave)
 
-def create_radii(radius: int = 30):
+def create_radii(radius: int = 99):
     count = 1
     p = Decomposition.FULL
-    for p in Decomposition:
-        pure_synth, sr = get_cached_wave(f=440, part=p)
+    for p in [Decomposition.FULL, Decomposition.OCTAVE]:
+        pure_synth, sr = get_cached_wave(f=440, cents=0, part=p)
         sum = pure_synth / count
         folder_path = os.path.join("created_samples", f"440_spread_{p.file_naming()}")
         if os.path.exists(folder_path):
             shutil.rmtree(folder_path)
         os.mkdir(folder_path)
         for i in range(1, radius):
-            left, _ = get_cached_wave(f=440 - i, part=p)
-            right, _ = get_cached_wave(f=440 + i, part=p)
+            new_count = count + 2
+            sum = sum * count/new_count
+            count = new_count
+            left, _ = get_cached_wave(f=440, cents=i, part=p)
+            right, _ = get_cached_wave(f=440, cents=i, part=p)
             sum += left / count
             sum += right / count
-            write(os.path.join(folder_path, f"{i}_hz.wav"), sr, sum)
+            write(os.path.join(folder_path, f"{i}_ct.wav"), sr, sum)
 
 
 
@@ -332,12 +338,13 @@ if __name__ == "__main__":
     #     # os.path.pardir,
     #     "external_samples",
     #     "violin_solo.wav"))
-    # create_radii()
-    for i in range(-100, 100):
-        midi_number = librosa.hz_to_midi(440) + (i/100)
-        print(f"midi number: {midi_number}")
-        trumpet_missing_octave(frequency=librosa.midi_to_hz(midi_number),
-                               file_path=os.path.join("created_samples", "cents"))
+    create_radii(radius=50)
+    if False:
+        for i in range(-100, 100):
+            midi_number = librosa.hz_to_midi(440) + (i/100)
+            print(f"midi number: {midi_number}")
+            trumpet_missing_octave(frequency=librosa.midi_to_hz(midi_number),
+                                   file_path=os.path.join("created_samples", "cents"))
     # old_generation()
     # D = np.abs(librosa.stft(audio, n_fft))
     # plt.figure()
