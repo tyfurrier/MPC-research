@@ -37,7 +37,8 @@ def get_cached_wave(f: int, part: Decomposition,
     midi_number = librosa.hz_to_midi(f) + cents / 100
     fname = os.path.join("created_samples", "cents", f"{str(midi_number).replace('.', 'p')}"
                                             f"{part.file_naming()}.wav")
-    return librosa.load(fname)
+    return librosa.load(fname)  # todo: rename the files to be midi whole number plus cents and throw
+    #  in an if cents is negative to make it the prior midi number plus complement
 
 
 def fft_of_file(fname: str):
@@ -326,11 +327,42 @@ def create_radii(radius: int = 99):
             sum = sum * count/new_count
             count = new_count
             left, _ = get_cached_wave(f=440, cents=i, part=p)
-            right, _ = get_cached_wave(f=440, cents=i, part=p)
+            right, _ = get_cached_wave(f=440, cents=-i, part=p)
             sum += left / count
             sum += right / count
             write(os.path.join(folder_path, f"{i}_ct.wav"), sr, sum)
 
+def tone_pair_osc_trumpet(
+    cents: int,
+    f: int = 440,
+    folder_name: str = "pairs",
+    clear_dir: bool = True
+):
+    folder_path = os.path.join("created_samples",
+                               folder_name)
+    if os.path.exists(folder_path):
+        if clear_dir:
+            shutil.rmtree(folder_path)
+            os.mkdir(folder_path)
+    else:
+        os.mkdir(folder_path)
+    for p in [
+        Decomposition.FULL,
+        # Decomposition.OCTAVE,
+        # Decomposition.HOLLOW
+              ]:
+        bitrate = 44100
+        fname = f"{cents}_{p.file_naming()}.wav"
+        sum = None
+        for c in [cents, -cents]:
+            freq = librosa.midi_to_hz(librosa.hz_to_midi(f) + c / 100)
+            wave, sr = trumpet_sound(frequency=freq,
+                                     bitrate=bitrate,
+                                     plot=False,
+                                     normalize=False
+                                     )
+            sum = wave if sum is None else sum + wave
+            write(os.path.join(folder_path, fname), int(sr), sum)
 
 
 if __name__ == "__main__":
@@ -338,7 +370,12 @@ if __name__ == "__main__":
     #     # os.path.pardir,
     #     "external_samples",
     #     "violin_solo.wav"))
-    create_radii(radius=50)
+    # create_radii(radius=50)
+    tone_pair_osc_trumpet(cents=0, clear_dir=True)
+    for i in range(1, 20):
+        tone_pair_osc_trumpet(cents=i/10.0, clear_dir=False)
+    for i in range(1, 100, 4):
+        tone_pair_osc_trumpet(cents=i, clear_dir=False)
     if False:
         for i in range(-100, 100):
             midi_number = librosa.hz_to_midi(440) + (i/100)
