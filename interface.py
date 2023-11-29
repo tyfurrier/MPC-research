@@ -37,6 +37,14 @@ def get_cached_wave(f: int, part: Decomposition,
     midi_number = librosa.hz_to_midi(f) + cents / 100
     fname = os.path.join("created_samples", "cents", f"{str(midi_number).replace('.', 'p')}"
                                             f"{part.file_naming()}.wav")
+    if not os.path.exists(fname):
+        wave, sr = trumpet_sound(frequency=librosa.midi_to_hz(midi_number),
+                                 bitrate=44100,
+                                    plot=False,
+                                    normalize=False,
+                                 part=part
+                                 )
+        write(fname, sr, wave)
     return librosa.load(fname)  # todo: rename the files to be midi whole number plus cents and throw
     #  in an if cents is negative to make it the prior midi number plus complement
 
@@ -113,7 +121,8 @@ def pure_tone_synthesizer(fundamental: int,
             if amp is None:
                 continue
             harmonic = f + 1
-            amplitude = amp * pure_tone[(i * harmonic) % len(pure_tone)]
+            # amplitude = amp * pure_tone[(((i + 1) * harmonic) - 1) % len(pure_tone)]
+            amplitude = amp * np.sin(2 * np.pi * fundamental * t[i] * harmonic)
             canvas[i] += amplitude
     full_second = np.array(canvas).astype(np.float32)
     if normalize:
@@ -122,26 +131,36 @@ def pure_tone_synthesizer(fundamental: int,
         return full_second, bitrate
 
 
-def trumpet_harmonic_decibels():
+def trumpet_harmonic_decibels(part: Decomposition = Decomposition.FULL) -> list:
     decibels = [-22, -19, -21.5, -26,
                 -25, -28, -27, -27,
                 -28, -32.5, -38] \
                + [(-65 - -38) / 10 * (i + 1) - 38 for i in range(10)] \
                + [(-92 - -65) / 6 * (i + 1) - 65 for i in range(6)]  # -65 by 10k | -92 by 13k
-    return decibels
+    if part == Decomposition.FULL:
+        return decibels
+    elif part == Decomposition.HOLLOW:
+        for i in range(1, len(decibels), 2):
+            decibels[i] = None
+        return decibels
+    elif part == Decomposition.OCTAVE:
+        return [decibels[i] if i % 2 == 1 else None for i in range(len(decibels))]
+    else:
+        raise ValueError(f"Unknown decomposition: {part}")
 
 
 def trumpet_sound(frequency: int,
                   bitrate: int = 44100,
                   plot: bool = False,
-                  normalize: bool = True,) -> np.ndarray:
+                  normalize: bool = True,
+                  part: Decomposition = Decomposition.FULL) -> np.ndarray:
     """ Returns a list of amplitudes for one second of a trumpet playing the given frequency"""
     amplitudes = [1.0,
                   0.8, 0.22, 0.4,
                   0.55
                   ]
     amplitudes = [0.36, 0.6, 0.23, 1, 0.7, 0.55, 0.18, 0.3, 0.05, 0.06]
-    decibels = trumpet_harmonic_decibels()
+    decibels = trumpet_harmonic_decibels(part=part)
     return pure_tone_synthesizer(fundamental=frequency,
                                  harmonic_decibels=decibels,
                                  plot=plot,
@@ -168,88 +187,6 @@ def scale_numpy_wave(wave: np.ndarray, plot: bool = False,
         plt.show()
     scaled_wave = np.array(scaled_wave).astype(np.float32)
     return scaled_wave
-
-
-def violin_sound_v3(window: int,
-                 formant_width: int = 100,
-                 fundamental: int = 256,
-                    fname="violin.wav",
-                    plot=True):
-    """ Plays a violin sound with the duration of the given window size in milliseconds.
-    Args:
-        window (int): The duration in milliseconds.
-        formant_width (int): The width of the formant in cents. The percieved magnitude at the formant will be the same
-        but the actual magnitude at fine points in the formant will be different. A formant width of 0 will result in a
-        pure tone at the fundamental. A formant width of 100 should result in frequencies at the f plus and minus 1 and
-        in between.
-        fundamental (int): The fundamental frequency in Hz. Defaults to 440.
-        """
-
-    bitrate = 44100
-    length = window // 1000
-
-    # create time values
-    t = np.linspace(0, length, length * bitrate, dtype=np.float32)
-    magnitudes = []
-    sample_data, sample_sr = librosa.load(os.path.join('external_samples', 'violin_solo.wav'))
-    stft = librosa.stft(sample_data, n_fft=bitrate, win_length=bitrate)
-    # stft = plot_fft(data=sample_data, sr=sample_sr)
-    collection_radius = 0.5
-    collection_frequency_up = librosa.midi_to_hz(librosa.hz_to_midi(fundamental) + collection_radius) - fundamental
-    collection_frequency_down = fundamental - librosa.midi_to_hz(librosa.hz_to_midi(fundamental) - collection_radius)
-
-    components = []
-    for f in range(1, bitrate//2//fundamental - 1):
-    # for f in range(1, 2):
-        frequency = fundamental * f
-        upper_bound = math.ceil(frequency + collection_frequency_up * f)
-        lower_bound = math.floor(frequency - collection_frequency_down * f) # todo: multiply collection_freq_down by f
-        if f > 20:
-            if frequency > 8300:
-                drop_off = 60
-            else:
-                drop_off = (frequency - 4200) / 4100 * 60 + magnitudes[19]
-            base_db = magnitudes[0]
-            magnitudes.append(base_db - drop_off)
-            continue
-        semi_down = math.floor(librosa.midi_to_hz(librosa.hz_to_midi(frequency) - 1))
-        semi_up = math.ceil(librosa.midi_to_hz(librosa.hz_to_midi(frequency) + 1))
-        magnitude_data = []
-        for hz in range(lower_bound, upper_bound):
-            if hz >= stft.shape[0]:
-                break
-            magnitude_data.append(np.average(stft[hz]))  # todo: this hz isn't doing anything, try dividing by 4. need to map to the right frequency
-        magnitudes.append(np.average(magnitude_data))  # switch sum/average
-    for f, level in enumerate(magnitudes):
-        frequency = fundamental * (f + 1)
-        db_level = level
-        level = librosa.db_to_amplitude(level)
-        #print(f"Harmonic {f + 1} at {frequency} Hz with amplitude {level} based on db of {db_level}")
-
-        if formant_width != 0:  # this is where we widen partials
-            components_of_partial =[]
-            local_width = formant_width * f
-            local_level = level/(local_width*2)
-            for hz in range(frequency - local_width, frequency + local_width):
-                components_of_partial.append(local_level * np.sin(2 * np.pi * frequency * t))
-            components.append(np.sum(components_of_partial, axis=0))
-        else:
-            components.append(level * np.sin(2 * np.pi * frequency * t))
-
-    final_wave = np.sum(components, axis=0).astype(np.float32)
-    scaled_wave = scale_numpy_wave(final_wave, plot=plot)
-
-    # save to wave file
-    # if os.path.exists("created_samples"):
-    #     shutil.rmtree("created_samples")
-    # os.mkdir("created_samples")
-
-    write(os.path.join("created_samples", fname), bitrate, scaled_wave)
-    if plot:
-        ret_data, ret_sr = librosa.load(fname)
-        plt.plot(ret_data[:1000])
-        plt.show()
-    return scaled_wave, bitrate
 
 def trumpet_missing_octave(frequency: int = 440, bitrate: int = 44100,
                            file_path: str = None,
@@ -371,11 +308,14 @@ if __name__ == "__main__":
     #     "external_samples",
     #     "violin_solo.wav"))
     # create_radii(radius=50)
-    tone_pair_osc_trumpet(cents=0, clear_dir=True)
-    for i in range(1, 20):
-        tone_pair_osc_trumpet(cents=i/10.0, clear_dir=False)
-    for i in range(1, 100, 4):
-        tone_pair_osc_trumpet(cents=i, clear_dir=False)
+    test, sr = trumpet_sound(frequency=440.1, bitrate=44100, plot=False, normalize=False)
+    write(os.path.join("created_samples", "trumpet_pure_440+1.wav"), sr, test)
+    if False:
+        tone_pair_osc_trumpet(cents=0, clear_dir=True)
+        for i in range(1, 20):
+            tone_pair_osc_trumpet(cents=i/10.0, clear_dir=False)
+        for i in range(1, 100, 4):
+            tone_pair_osc_trumpet(cents=i, clear_dir=False)
     if False:
         for i in range(-100, 100):
             midi_number = librosa.hz_to_midi(440) + (i/100)
