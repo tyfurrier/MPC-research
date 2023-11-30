@@ -52,7 +52,8 @@ def get_cached_wave(f: int, part: Decomposition,
         Tuple[np.ndarray, int]: The wave and the sample rate.
     """
     midi_number = librosa.hz_to_midi(f) + cents / 100
-    fname = os.path.join(OUTPUT_DIR, "cents440", f"{part.file_naming()}_{int(cents*10)}cz.wav")
+    folder_path = os.path.join(OUTPUT_DIR, "cents440")
+    fname = os.path.join(folder_path, f"{part.file_naming()}_{int(cents*10)}cz.wav")
     if not os.path.exists(fname):
         wave, sr = trumpet_sound(frequency=librosa.midi_to_hz(midi_number),
                                  bitrate=44100,
@@ -60,6 +61,7 @@ def get_cached_wave(f: int, part: Decomposition,
                                     normalize=False,
                                  part=part
                                  )
+        _prep_directory(folder_path=folder_path, default_path=folder_path, clear_dir=False)
         write(fname, sr, wave)
     return librosa.load(fname)  # todo: rename the files to be midi whole number plus cents and throw
     #  in an if cents is negative to make it the prior midi number plus complement
