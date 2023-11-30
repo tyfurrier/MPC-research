@@ -9,5 +9,8 @@ dependencies = [
     "matplotlib",
     "scipy",
     "playsound",
-    "simpleaudio"
+    "simpleaudio",
+    "pyaudio",
+    "pygame",
+
 ]
