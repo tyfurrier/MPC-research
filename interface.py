@@ -1,5 +1,7 @@
+import logging
 import math
 import tkinter as tk
+import uuid
 
 import matplotlib.pyplot
 import scipy.fft
@@ -13,6 +15,10 @@ import matplotlib.pyplot as plt
 import os, shutil
 from typing import Tuple
 from enum import Enum
+
+LOGGER = logging.Logger(__name__)
+logging.basicConfig(level=logging.DEBUG)
+
 class Decomposition(Enum):
     FULL = ""
     OCTAVE = "octave_"
@@ -249,25 +255,35 @@ def trumpet_missing_octave(frequency: int = 440, bitrate: int = 44100,
                 f"{d_.file_naming()}.wav"
         write(os.path.join(file_path, fname), bitrate, wave)
 
-def create_radii(radius: int = 99):
+def create_radii(radius: int = 99, folder_path: str = None, override: bool = False):
     count = 1
     p = Decomposition.FULL
-    for p in [Decomposition.FULL, Decomposition.OCTAVE]:
+    for p in [
+        Decomposition.FULL,
+        # Decomposition.OCTAVE,
+        # Decomposition.HOLLOW
+              ]:
         pure_synth, sr = get_cached_wave(f=440, cents=0, part=p)
         sum = pure_synth / count
-        folder_path = os.path.join("created_samples", f"440_spread_{p.file_naming()}")
+        if folder_path is None:
+            folder_path = os.path.join("created_samples", f"radius_{str(uuid.uuid1())}")
         if os.path.exists(folder_path):
-            shutil.rmtree(folder_path)
-        os.mkdir(folder_path)
-        for i in range(1, radius):
+            if override:
+                shutil.rmtree(folder_path)
+                os.mkdir(folder_path)
+            else:
+                raise FileExistsError(folder_path)
+        for i in range(1, radius * 10):
+            logging.debug(f"radius {str(i / 1000)}")
+            distance = i / 10
             new_count = count + 2
             sum = sum * count/new_count
             count = new_count
-            left, _ = get_cached_wave(f=440, cents=i, part=p)
-            right, _ = get_cached_wave(f=440, cents=-i, part=p)
+            left, _ = get_cached_wave(f=440, cents=distance, part=p)
+            right, _ = get_cached_wave(f=440, cents=-distance, part=p)
             sum += left / count
             sum += right / count
-            write(os.path.join(folder_path, f"{i}_ct.wav"), sr, sum)
+            write(os.path.join(folder_path, f"{p.file_naming()}_{i}_ct.wav"), sr, sum)
 
 def tone_pair_osc_trumpet(
     cents: int,
@@ -307,15 +323,14 @@ if __name__ == "__main__":
     #     # os.path.pardir,
     #     "external_samples",
     #     "violin_solo.wav"))
-    # create_radii(radius=50)
-    test, sr = trumpet_sound(frequency=440.1, bitrate=44100, plot=False, normalize=False)
-    write(os.path.join("created_samples", "trumpet_pure_440+1.wav"), sr, test)
-    if False:
-        tone_pair_osc_trumpet(cents=0, clear_dir=True)
-        for i in range(1, 20):
-            tone_pair_osc_trumpet(cents=i/10.0, clear_dir=False)
-        for i in range(1, 100, 4):
-            tone_pair_osc_trumpet(cents=i, clear_dir=False)
+    create_radii(radius=50, folder_path=os.path.join("created_samples", "radius_50"))
+    # test, sr = trumpet_sound(frequency=440.1, bitrate=44100, plot=False, normalize=False)
+    # write(os.path.join("created_samples", "trumpet_pure_440+1.wav"), sr, test)
+    # tone_pair_osc_trumpet(cents=0, clear_dir=True)
+    # for i in range(1, 20):
+    #     tone_pair_osc_trumpet(cents=i/10.0, clear_dir=False)
+    # for i in range(1, 100, 4):
+    #     tone_pair_osc_trumpet(cents=i, clear_dir=False)
     if False:
         for i in range(-100, 100):
             midi_number = librosa.hz_to_midi(440) + (i/100)
