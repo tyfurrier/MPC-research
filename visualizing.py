@@ -58,17 +58,20 @@ def visualize_stimuli(cents: float,
 def results_df():
     df = pd.read_csv("spreadsheet.csv")
     df.reset_index(inplace=True)
-    df["ratio"] = np.maximum(df["sound1"] / df["sound2"], df["sound1"] / df["sound2"])
+    df["ratio"] = np.maximum(df["sound1"] / df["sound2"], df["sound2"] / df["sound1"])
     df["different"] = df["decision"]
     df["different"].replace(["Same", "Different"], [0, 1], inplace=True)
     df["size"] = 1
     df.head()
     print(df)
-    fig = px.scatter(df, x="ratio", y="different", color="subject")
+    fig = px.scatter(df, x="ratio", y="different", color="subject",
+                     hover_data=["sound1", "sound2", "decision"])
     fig.show()
+    return df
 
 if __name__ == "__main__":
-    results_df()
+    df = results_df()
+    print(df.where(df["ratio"] < 1.5).count())
     if False:
         for cents in [0.1, 0.5, 1, 2, 5, 10, 25, 40, 49.9]:
             visualize_stimuli(cents=cents, decomposition=Decomposition.FULL)
