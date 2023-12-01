@@ -1,28 +1,24 @@
-0,4731,57536,created_samples/radius_50/full_10_ct.wav,created_samples/radius_50/full_200_ct.wav,Tyler,
-0,120633,121539,created_samples/radius_50/full_10_ct.wav,created_samples/radius_50/full_200_ct.wav,Tyler,
-0,1792,108466,created_samples/radius_50/full_10_ct.wav,created_samples/radius_50/full_200_ct.wav,,
-0,1759,7433,created_samples/radius_50/full_321_ct.wav,created_samples/radius_50/full_309_ct.wav,R,
-0,3866,2023-11-30 16:29:11.889338,52205,created_samples/radius_50/full_116_ct.wav,created_samples/radius_50/full_253_ct.wav,12,
-0,1573,2023-11-30 16:43:18.965736,6409,created_samples/radius_50/full_18_ct.wav,created_samples/radius_50/full_105_ct.wav,Tyler,,Different
-0,8386,2023-11-30 16:43:25.778539,12109,created_samples/radius_50/full_128_ct.wav,created_samples/radius_50/full_415_ct.wav,Tyler,,Different
-0,2043,2023-11-30 16:45:49.862854,61866,created_samples/radius_50/full_376_ct.wav,created_samples/radius_50/full_328_ct.wav,Tyler,-p1--p2--p2--p1--p2--p1--s-,Same
-0,64024,2023-11-30 16:46:51.842319,67882,created_samples/radius_50/full_193_ct.wav,created_samples/radius_50/full_377_ct.wav,Tyler,-p1--p2--p2--p1--p2--p1--s--p1--p2--d-,Different
-0,89108,2023-11-30 16:47:16.925228,94815,created_samples/radius_50/full_224_ct.wav,created_samples/radius_50/full_366_ct.wav,Tyler,-p1--p2--p2--p1--p2--p1--s--p1--p2--d--p1--p2--d-,Different
-0,1907,2023-11-30 16:47:52.880545,6206,created_samples/radius_50/full_31_ct.wav,created_samples/radius_50/full_407_ct.wav,Tyler,-p1--p2--d-,Different
-0,225322,2023-11-30 16:51:36.291260,256761,created_samples/radius_50/full_343_ct.wav,created_samples/radius_50/full_60_ct.wav,Jake,-p1--p1--p1--p2--p2--p2--p2--p2--p2--p2--p2--p2--p2--p2--p2--p2--p2--p2--p2--p2--p2--d-,Different
-0,287305,2023-11-30 16:52:38.273309,297413,created_samples/radius_50/full_416_ct.wav,created_samples/radius_50/full_82_ct.wav,Jake,-p1--p2--p1--p2--s-,Same
-0,298671,2023-11-30 16:52:49.638305,326696,created_samples/radius_50/full_348_ct.wav,created_samples/radius_50/full_139_ct.wav,Jake,-p1--p2--p1--p2--d-,Different
-0,328039,2023-11-30 16:53:19.006023,353165,created_samples/radius_50/full_146_ct.wav,created_samples/radius_50/full_98_ct.wav,Jake,-p1--p2--s-,Same
-0,354720,2023-11-30 16:53:45.686451,366413,created_samples/radius_50/full_277_ct.wav,created_samples/radius_50/full_234_ct.wav,Jake,-p1--p2--p1--p2--s-,Same
-0,368592,2023-11-30 16:53:59.558345,375612,created_samples/radius_50/full_81_ct.wav,created_samples/radius_50/full_111_ct.wav,Jake,-p1--p2--s-,Same
-0,376641,2023-11-30 16:54:07.606906,392032,created_samples/radius_50/full_302_ct.wav,created_samples/radius_50/full_485_ct.wav,Jake,-p1--p1--p2--d-,Different
-0,393197,2023-11-30 16:54:24.163190,408712,created_samples/radius_50/full_125_ct.wav,created_samples/radius_50/full_22_ct.wav,Jake,-p1--p2--d-,Different
-0,410156,2023-11-30 16:54:41.121633,416465,created_samples/radius_50/full_487_ct.wav,created_samples/radius_50/full_19_ct.wav,Jake,-p1--p2--d-,Different
-0,419095,2023-11-30 16:54:50.060273,424598,created_samples/radius_50/full_212_ct.wav,created_samples/radius_50/full_225_ct.wav,Jake,-p1--p2--s-,Same
-0,426181,2023-11-30 16:54:57.146371,438465,created_samples/radius_50/full_416_ct.wav,created_samples/radius_50/full_15_ct.wav,Jake,-p1--p2--p1--p2--d-,Different
-0,440039,2023-11-30 16:55:11.004196,445249,created_samples/radius_50/full_258_ct.wav,created_samples/radius_50/full_442_ct.wav,Jake,-p1--p2--s-,Same
-0,447795,2023-11-30 16:55:18.759525,458181,created_samples/radius_50/full_286_ct.wav,created_samples/radius_50/full_258_ct.wav,Jake,-p1--p2--p1--p2--s-,Same
-0,459679,2023-11-30 16:55:30.642947,496301,created_samples/radius_50/full_42_ct.wav,created_samples/radius_50/full_336_ct.wav,Jake,-p1--p2--d-,Different
+0,start(ticks),datetime_start,end(ticks),sound1,sound2,subject,actions,decision
+0,1573,2023-11-30 16:43:18.965736,6409,18,105,Tyler,,Different
+0,8386,2023-11-30 16:43:25.778539,12109,128,415,Tyler,,Different
+0,2043,2023-11-30 16:45:49.862854,61866,376,328,Tyler,-p1--p2--p2--p1--p2--p1--s-,Same
+0,64024,2023-11-30 16:46:51.842319,67882,193,377,Tyler,-p1--p2--p2--p1--p2--p1--s--p1--p2--d-,Different
+0,89108,2023-11-30 16:47:16.925228,94815,224,366,Tyler,-p1--p2--p2--p1--p2--p1--s--p1--p2--d--p1--p2--d-,Different
+0,1907,2023-11-30 16:47:52.880545,6206,31,407,Tyler,-p1--p2--d-,Different
+0,225322,2023-11-30 16:51:36.291260,256761,343,60,Jake,-p1--p1--p1--p2--p2--p2--p2--p2--p2--p2--p2--p2--p2--p2--p2--p2--p2--p2--p2--p2--p2--d-,Different
+0,287305,2023-11-30 16:52:38.273309,297413,416,82,Jake,-p1--p2--p1--p2--s-,Same
+0,298671,2023-11-30 16:52:49.638305,326696,348,139,Jake,-p1--p2--p1--p2--d-,Different
+0,328039,2023-11-30 16:53:19.006023,353165,146,98,Jake,-p1--p2--s-,Same
+0,354720,2023-11-30 16:53:45.686451,366413,277,234,Jake,-p1--p2--p1--p2--s-,Same
+0,368592,2023-11-30 16:53:59.558345,375612,81,111,Jake,-p1--p2--s-,Same
+0,376641,2023-11-30 16:54:07.606906,392032,302,485,Jake,-p1--p1--p2--d-,Different
+0,393197,2023-11-30 16:54:24.163190,408712,125,22,Jake,-p1--p2--d-,Different
+0,410156,2023-11-30 16:54:41.121633,416465,487,19,Jake,-p1--p2--d-,Different
+0,419095,2023-11-30 16:54:50.060273,424598,212,225,Jake,-p1--p2--s-,Same
+0,426181,2023-11-30 16:54:57.146371,438465,416,15,Jake,-p1--p2--p1--p2--d-,Different
+0,440039,2023-11-30 16:55:11.004196,445249,258,442,Jake,-p1--p2--s-,Same
+0,447795,2023-11-30 16:55:18.759525,458181,286,258,Jake,-p1--p2--p1--p2--s-,Same
+0,459679,2023-11-30 16:55:30.642947,496301,42,336,Jake,-p1--p2--d-,Different
 0,4589,2023-11-30 16:58:57.993733,12625,285,142,Jake,-p1--p2--d-,Different
 0,30235,2023-11-30 16:59:23.639568,45093,188,187,Jake,-p1--p2--p1--p2--s-,Same
 0,6514,2023-11-30 17:02:22.109067,19933,445,339,Jake,-p1--p2--p1--p2--s-,Same
