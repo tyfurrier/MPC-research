@@ -1,7 +1,7 @@
 import PySimpleGUIWeb as sg
 from pygame import mixer, time
 import pygame
-import pyaudio
+# import pyaudio
 import wave
 import sys
 import random
@@ -28,7 +28,8 @@ def play(file_path: str):
     wf = wave.open(sys.argv[1], 'rb')
 
     # create an audio object
-    p = pyaudio.PyAudio()
+    # p = pyaudio.PyAudio()
+    p = None
 
     # open stream based on the wave object which has been input.
     stream = p.open(format=p.get_format_from_width(wf.getsampwidth()),
