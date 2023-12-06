@@ -11,7 +11,7 @@ import socket
 import datetime
 from interface import OUTPUT_DIR, spread_file_naming, Decomposition
 import os
-os.chdir(os.path.dirname(os.path.join(os.path.abspath(__file__), os.pardir))
+os.chdir(os.path.dirname(os.path.join(os.path.abspath(__file__), os.pardir)))
 
 WEB_VERSION = True
 
