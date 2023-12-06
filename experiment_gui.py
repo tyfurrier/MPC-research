@@ -10,6 +10,8 @@ from pandas import DataFrame
 import socket
 import datetime
 from interface import OUTPUT_DIR, spread_file_naming, Decomposition
+import os
+os.environ['SDL_AUDIODRIVER'] = 'dsp'
 
 WEB_VERSION = True
 
