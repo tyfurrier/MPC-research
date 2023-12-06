@@ -207,7 +207,6 @@ def scale_numpy_wave(wave: np.ndarray, plot: bool = False,
 def trumpet_missing_octave(frequency: int = 440, bitrate: int = 44100,
                            file_path: str = None,
                            overwrite_folder: bool = False):
-    import simpleaudio as sa
     to_write = []
 
     d = trumpet_harmonic_decibels()
