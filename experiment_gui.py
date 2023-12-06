@@ -1,4 +1,4 @@
-import PySimpleGUI as sg
+import PySimpleGUIWeb as sg
 from pygame import mixer, time
 import pygame
 import pyaudio
@@ -7,11 +7,11 @@ import sys
 import random
 import os
 from pandas import DataFrame
+import socket
 import datetime
 from interface import OUTPUT_DIR, spread_file_naming, Decomposition
 
-
-
+WEB_VERSION = True
 
 def play(file_path: str):
     # length of data to read.
@@ -58,11 +58,12 @@ def add_to_csv(row: dict):
 mixer.init()
 is_playing = False
 PARTICIPANT_KEY = "-PARTICIPANT-"
+status_print = sg.Text(size=(12,1), key='-STATUS-')
 layout= [
     [sg.Text("Your name"), sg.Input(key=PARTICIPANT_KEY)],
     [sg.Text("Sound 1"), sg.Button('Play', pad=(10, 0), key='-PLAY1-'),
      sg.Text("Sound 2"), sg.Button('Play', pad=(10, 0), key='-PLAY2-'),],
-    [sg.Text(size=(12,1), key='-STATUS-')],
+    [status_print],
     [
         sg.Button('Same', pad=(10, 0), key='-SAME-'),
         sg.Button('Different', pad=(10, 0), key='-DIFFERENT-'),
@@ -74,24 +75,32 @@ layout= [
 ]
 
 audio_player_window = sg.Window('Audio Player', layout, finalize=True,
-                                return_keyboard_events=True)
+                                return_keyboard_events=True,
+                                web_start_browser=False,
+                                web_port=8080,)
+print(f"public ip: {socket.gethostbyname(socket.gethostname())}")
 
 pygame.init()
 
 
 def get_random_sound(force_spread: int = None):
-
     spread = random.randint(0, 499) if force_spread is None else force_spread
     return os.path.join(OUTPUT_DIR, "radius_50", spread_file_naming(radius=spread/10,
                                                                     part=Decomposition.FULL,
                                                                     ))
 
 def get_comparison() -> tuple:
-    return get_random_sound(), get_random_sound()
+    ratio = random.randint(0, 5000) / 1000
+    spread_two = None
+    while spread_two is None:
+        spread = 2 ** random.randint(1, 9)
+        if spread * ratio < 500:
+            spread_two = spread * ratio
+    return get_random_sound(force_spread=spread), get_random_sound(force_spread=spread_two)
 
 
 COMPARISON_ROW = None
-tracking = {}
+tracking = {"-STATUS-": "",}
 actions_string = ""
 while True:
     event, values = audio_player_window.read()
@@ -109,9 +118,10 @@ while True:
                           "status": [],
                           }
     COMPARISON_ROW['participant'] = [values[PARTICIPANT_KEY]]
-    COMPARISON_ROW['status'] = [audio_player_window['-STATUS-'].get()]
+    COMPARISON_ROW['status'] = [tracking['-STATUS-']]
     first = mixer.Sound(sound_one)
     second = mixer.Sound(sound_two)
+    fade_time = 200
 
     song_channel = mixer.Channel(2)
 
@@ -119,41 +129,50 @@ while True:
         actions_string += "-p1-"
         if tracking.get('-STATUS2-') == 'Playing':
             second.stop()
-            tracking['-STATUS2-'].update('Stopped')
+            tracking['-STATUS2-'] = 'Stopped'
+        if tracking.get('-STATUS1-') == 'Playing':
+            first.stop()
+            tracking['-STATUS1-'] = 'Stopped'
         print('playing 1')
-        first.play()
-        time.wait(1000)
+        first.play(fade_ms=fade_time)
+        # time.wait(1000)
         print("2 done")
     elif event in ['-PLAY2-', '2']:
         print("playing 2")
         actions_string += "-p2-"
         if tracking.get('-STATUS1-') == 'Playing':
             first.stop()
-            tracking['-STATUS1-'].update('Stopped')
-        second.play()
-        time.wait(1000)
+            tracking['-STATUS1-'] = 'Stopped'
+        if tracking.get('-STATUS2-') == 'Playing':
+            second.stop()
+            tracking['-STATUS2-'] = 'Stopped'
+        second.play(fade_ms=fade_time)
+        # time.wait(1000)
         print("2 done")
     elif event == '-SAME-':
         actions_string += "-s-"
-        audio_player_window['-STATUS-'].update('Same')
+        tracking['-STATUS-'] = 'Same'
+        status_print.update("Same")
     elif event == '-DIFFERENT-':
         actions_string += "-d-"
-        audio_player_window['-STATUS-'].update('Different')
+        tracking['-STATUS-'] = 'Different'
+        status_print.update("Different")
     elif event == '-STOP-':
         if COMPARISON_ROW["participant"][0] in [None, ""]:
             sg.popup_error("Please write your name first")
             continue
-        if audio_player_window['-STATUS-'].get() == "":
+        if tracking['-STATUS-'] == "":
             sg.popup_error("Please select a response")
             continue
         COMPARISON_ROW['time_ended'].append(pygame.time.get_ticks())
         COMPARISON_ROW['behavior'].append(actions_string)
-        COMPARISON_ROW['status'] = [audio_player_window['-STATUS-'].get()]
+        COMPARISON_ROW['status'] = [tracking['-STATUS-']]
         print(COMPARISON_ROW)
         add_to_csv(COMPARISON_ROW)
         COMPARISON_ROW = None
         actions_string = ""
-        audio_player_window['-STATUS-'].update('')
+        status_print.update("")
+        # audio_player_window['-STATUS-'].update('')
         print("ON TO NEW COMPARISON")
     elif event == '-VOLUME-':
         volume = values['-VOLUME-']
