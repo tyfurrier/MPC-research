@@ -9,7 +9,6 @@ dependencies = [
     "matplotlib",
     "scipy",
     "playsound",
-    "pyaudio",
     "pygame",
     "pysimpleguiweb",
 

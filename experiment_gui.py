@@ -55,7 +55,7 @@ def play(file_path: str):
 def add_to_csv(row: dict):
     df = DataFrame(row)
     df.to_csv("spreadsheet.csv", mode='a', header=False)
-
+pygame.init()
 mixer.init()
 is_playing = False
 PARTICIPANT_KEY = "-PARTICIPANT-"
@@ -79,7 +79,6 @@ audio_player_window = sg.Window('Audio Player', layout, finalize=True,
                                 return_keyboard_events=True,
                                 web_start_browser=False,
                                 web_port=8080,)
-print(f"public ip: {socket.gethostbyname(socket.gethostname())}")
 
 pygame.init()
 
