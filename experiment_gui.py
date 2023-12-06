@@ -11,7 +11,7 @@ import socket
 import datetime
 from interface import OUTPUT_DIR, spread_file_naming, Decomposition
 import os
-os.environ['SDL_AUDIODRIVER'] = 'dsp'
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 WEB_VERSION = True
 
