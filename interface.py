@@ -18,14 +18,14 @@ from enums import Decomposition, SoundFileType
 from helpers import _custom_write, _prep_directory
 
 LOGGER = logging.Logger(__name__)
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 OUTPUT_DIR = "created_samples"
 
 def spread_file_naming(radius: float, part: Decomposition, ct_spacing: float = 0.1):
     """ Returns the file name for the spread sound. """
     spacing_key = "" if ct_spacing == 0.1 else f"_{str(ct_spacing).replace('.', '-')}gaps"
-    return f"{part.file_naming()}_{str(int(radius * 10))}_ct{spacing_key}.wav"
+    return f"{part.file_naming()}_{str(radius).replace('.', '+')}_ct{spacing_key}.wav"
 
 
 def get_combination_naming(base_radius, octave_radius,
@@ -43,7 +43,8 @@ def get_spread_sound(folder_name: str,
     return librosa.load(fname)
 
 def get_cached_wave(f: int, part: Decomposition,
-                    cents: int = 0) -> Tuple[np.ndarray, float]:
+                    cents: int = 0,
+                    duration: float = 1.0) -> Tuple[np.ndarray, float]:
     """ Gets the cached wave from the given frequency and decomposition.
     Args:
         f (int): The frequency.
@@ -53,15 +54,18 @@ def get_cached_wave(f: int, part: Decomposition,
     """
     midi_number = librosa.hz_to_midi(f) + cents / 100
     folder_path = os.path.join(OUTPUT_DIR, "cents440")
-    fname = os.path.join(folder_path, f"{part.file_naming()}_{int(cents*10)}cz.wav")
-    if not os.path.exists(fname):
+    fname = os.path.join(folder_path, f"{part.file_naming()}_{str(cents).replace('.', '+')}ct.wav")
+    if os.path.exists(fname):
+        cached_sound, sr = librosa.load(fname)
+    if not os.path.exists(fname) or (len(cached_sound) / sr) < duration:
         wave, sr = trumpet_sound(frequency=librosa.midi_to_hz(midi_number),
                                  bitrate=44100,
                                     plot=False,
                                     normalize=False,
+                                 duration=duration,
                                  part=part
                                  )
-        _prep_directory(folder_path=folder_path, default_path=folder_path, clear_dir=False)
+        _custom_write(path=fname, wave=wave, sr=sr, overwrite=True)
         write(fname, sr, wave)
     return librosa.load(fname)  # todo: rename the files to be midi whole number plus cents and throw
     #  in an if cents is negative to make it the prior midi number plus complement
@@ -124,29 +128,32 @@ def pure_tone_synthesizer(fundamental: int,
                           plot: bool = False,
                           bitrate: int = 44100,
                           normalize: bool = True,
-                          custom_minmax: tuple = None) -> np.ndarray:
+                          custom_minmax: tuple = None,
+                          duration: float = 1.0) -> np.ndarray:
     """ Returns one second of the fundamental and its harmonics at the given decibel levels.
-    The amplitudes list should include the fundamental and None for -inf decibels."""
+    The amplitudes list should include the fundamental and None for -inf decibels.
+    Args:
+        duration (float): The duration of the sound in seconds.
+        """
     if harmonic_decibels is None:
         harmonic_decibels = [0]
     amplitudes = [librosa.db_to_amplitude(d) if d is not None else None for d in harmonic_decibels]
-    length = 1  # seconds of pure tone to generate
+    length = duration  # seconds of pure tone to generate
     t = np.linspace(0, length, length * bitrate)
-    canvas = np.zeros(bitrate)  # one second since we are using integer hz values
+    canvas = np.zeros(bitrate * length)  # one second since we are using integer hz values
     pure_tone = np.sin(2 * np.pi * fundamental * t)
-    for i in range(len(canvas)):
-        for f, amp in enumerate(amplitudes):
-            if amp is None:
-                continue
-            harmonic = f + 1
-            # amplitude = amp * pure_tone[(((i + 1) * harmonic) - 1) % len(pure_tone)]
-            amplitude = amp * np.sin(2 * np.pi * fundamental * t[i] * harmonic)
-            canvas[i] += amplitude
-    full_second = np.array(canvas).astype(np.float32)
+    for f, amp in enumerate(amplitudes):
+        if amp is None:  # missing for certain decompositions
+            continue
+        harmonic = f + 1
+        # amplitude = amp * pure_tone[(((i + 1) * harmonic) - 1) % len(pure_tone)]
+        amplitude = amp * np.sin(2 * np.pi * fundamental * t * harmonic)
+        canvas += amplitude
+    full_duration = np.array(canvas).astype(np.float32)
     if normalize:
-        return scale_numpy_wave(wave=full_second, plot=plot, minmax=custom_minmax), bitrate
+        return scale_numpy_wave(wave=full_duration, plot=plot, minmax=custom_minmax), bitrate
     else:
-        return full_second, bitrate
+        return full_duration, bitrate
 
 
 def trumpet_harmonic_decibels(part: Decomposition = Decomposition.FULL) -> list:
@@ -169,6 +176,7 @@ def trumpet_sound(frequency: int,
                   bitrate: int = 44100,
                   plot: bool = False,
                   normalize: bool = True,
+                  duration: float = 1,
                   part: Decomposition = Decomposition.FULL) -> np.ndarray:
     """ Returns a list of amplitudes for one second of a trumpet playing the given frequency"""
     amplitudes = [1.0,
@@ -182,10 +190,52 @@ def trumpet_sound(frequency: int,
                                  plot=plot,
                                  bitrate=bitrate,
                                  normalize=normalize,
+                                 duration=duration,
                                  )
 
+def trim_wave_start(wave: np.ndarray, sr: int,
+              start: float = None,
+              start_ratio: float = None) -> np.ndarray:
+    """ Trims a wave to the given start and end times in seconds if start seconds and start_ratio
+    are passed, start seconds will be used"""
+    if start is not None:
+        start = int(start * sr)
+    elif start_ratio is not None:
+        start = int(start_ratio * len(wave))
+    else:
+        raise ValueError("Must pass either start or start_ratio")
+    return wave[start:]
 
 def scale_numpy_wave(wave: np.ndarray, plot: bool = False,
+                     minmax: tuple = None,
+                     ret_max: float = None,
+                     ret_min: float = None) -> np.ndarray:
+    """ scales a numpy wave and returns it in int32 -2147483648 to 2147483647"""
+
+    if ret_max is None or ret_min is None:
+        ret_max, ret_min = 1, -1
+    if minmax is None:
+        min_a = np.min(wave)
+        max_a = np.max(wave)
+    else:
+        min_a, max_a = minmax
+    min_ratio = ret_min / min_a
+    max_ratio = ret_max / max_a
+    # todo: case when scaling down and case when min_ratio < 1 and max_ratio > 1
+    ratio = min_ratio if min_ratio > max_ratio else max_ratio
+    scaled_wave = wave * ratio
+    # scaled_wave = []
+    # for bit in wave:
+    #     scaled_wave.append((((bit - min_a) / (max_a - min_a)) * 2 - 1))
+    if plot:
+        plt.plot(wave)
+        plt.show()
+        plt.plot(scaled_wave)
+        plt.show()
+    scaled_wave = np.array(scaled_wave).astype(np.float32)
+    return scaled_wave
+
+def scale_numpy_wave_legacy(wave: np.ndarray, plot: bool = False,
                      minmax: tuple = None) -> np.ndarray:
     """ scales a numpy wave and returns it in int32 -2147483648 to 2147483647"""
     if minmax is None:
@@ -268,7 +318,11 @@ def create_radii(radius: int = 99,
                  folder_path: str = None,
                  overwrite: bool = False,
                  clear_dir: bool = False,
+                 partials_per_cent: int = 10,
                  parts: List[Decomposition] = None,
+                 duration: float = 1.0,
+                 scale: bool = False,
+                 trim_front: float = 0.0,
                  ):
     count = 1
     if clear_dir is True and overwrite is False:
@@ -276,27 +330,34 @@ def create_radii(radius: int = 99,
     if parts is None:
         parts = [Decomposition.FULL, Decomposition.OCTAVE, Decomposition.HOLLOW]
     for p in parts:
-        pure_synth, sr = get_cached_wave(f=440, cents=0, part=p)
+        pure_synth, sr = get_cached_wave(f=440, cents=0, part=p, duration=duration)
         sum = pure_synth / count
 
-        default_path = os.path.join(OUTPUT_DIR, f"radius_{str(uuid.uuid1())}")
+        default_path = os.path.join(OUTPUT_DIR, f"radius_{radius}_ct_{partials_per_cent}_ppr_{str(uuid.uuid1())}")
         _prep_directory(folder_path=folder_path,
                         default_path=default_path,
                         clear_dir=clear_dir)
 
-        for i in range(1, radius * 10):
-            logging.debug(f"radius {str(i / 1000)}")
-            distance = i / 10
+        for i in range(1, radius * partials_per_cent):
+            logging.info(f"radius {str(i / partials_per_cent * 100)}")
+            distance = i / partials_per_cent
             new_count = count + 2
             sum = sum * count/new_count
             count = new_count
-            left, _ = get_cached_wave(f=440, cents=distance, part=p)
-            right, _ = get_cached_wave(f=440, cents=-distance, part=p)
+            left, _ = get_cached_wave(f=440, cents=distance, part=p, duration=duration)
+            right, _ = get_cached_wave(f=440, cents=-distance, part=p, duration=duration)
             sum += left / count
             sum += right / count
-            file_name = f"{p.file_naming()}_{i}_ct.wav"
+            file_name = f"{p.file_naming()}_{str(distance).replace('.', '+')}_ct.wav"
             file_path = os.path.join(folder_path, file_name)
-            _custom_write(path=file_path, sr=sr, wave=sum, overwrite=overwrite)
+            trimmed_sum = trim_wave_start(wave=sum, sr=sr, start=trim_front)
+            if scale:
+                trimmed_scaled = scale_numpy_wave(wave=trimmed_sum,
+                                            ret_min=np.min(sum),
+                                            ret_max=np.max(sum))
+            else:
+                trimmed_scaled = trimmed_sum
+            _custom_write(path=file_path, sr=sr, wave=trimmed_scaled, overwrite=overwrite)
 
 def make_combinations(
     folder_path: str,
@@ -373,24 +434,50 @@ if __name__ == "__main__":
     #     # os.path.pardir,
     #     "external_samples",
     #     "violin_solo.wav"))
-
-    create_radii(radius=20,
-                 folder_path=os.path.join(OUTPUT_DIR, "radius_50"),
-                 parts=[Decomposition.HOLLOW],
-                 overwrite=True
-                 )
-
-    make_combinations(folder_path=os.path.join(OUTPUT_DIR, "combinations_spacing-001"),
-                      combinations={
-                          Decomposition.FULL: [0.1, 0.2, 0.3, 0.4, 0.5,
-                                               1.0, 2.0, 3.0, 5.0, 10.0, 15.0, 20.0, 25.0,
-                                               30.0, 35.0, 40.0, 45.0],
-                          Decomposition.OCTAVE: [0.1, 0.2, 0.3, 0.4, 0.5,
-                                               1.0, 2.0, 3.0, 5.0, 10.0, 15.0, 20.0, 25.0,
-                                               30.0, 35.0, 40.0, 45.0],
-                      },
-                      source_folder="radius_50",
-                      overwrite=True,)
+    scale_test = False
+    if scale_test:
+        test_file_path = os.path.join("testing", "scale_test")
+        quiet_spread, sr = get_spread_sound(folder_name="radius_50",
+                                        cents=20,
+                                        part=Decomposition.FULL)
+        ret_max, ret_min = np.max(quiet_spread), np.min(quiet_spread)
+        quiet_spread = trim_wave_start(wave=quiet_spread, sr=sr, start=0.2)  # 0.2 seconds
+        _custom_write(path=os.path.join(test_file_path, "quiet_spread_20ct_10ppc.wav"),
+                      wave=quiet_spread,
+                      sr=sr,
+                      overwrite=True)
+        loud_spread = scale_numpy_wave(wave=quiet_spread,
+                                       ret_max=ret_max,
+                                       ret_min=ret_min,
+                                       plot=True)
+        _custom_write(path=os.path.join(test_file_path, "scaled_spread_20ct_10ppc.wav"),
+                      wave=loud_spread,
+                      sr=sr,
+                      overwrite=True)
+    make_radii = True
+    if make_radii:
+        create_radii(radius=25,
+                     folder_path=os.path.join(OUTPUT_DIR, "radius_25"),
+                     parts=[Decomposition.FULL],
+                     partials_per_cent=100,
+                     overwrite=True,
+                     duration=3,
+                     trim_front=1,
+                     scale=True
+                     )
+    combos = False
+    if combos:
+        make_combinations(folder_path=os.path.join(OUTPUT_DIR, "combinations_spacing-001"),
+                          combinations={
+                              Decomposition.FULL: [0.1, 0.2, 0.3, 0.4, 0.5,
+                                                   1.0, 2.0, 3.0, 5.0, 10.0, 15.0, 20.0, 25.0,
+                                                   30.0, 35.0, 40.0, 45.0],
+                              Decomposition.OCTAVE: [0.1, 0.2, 0.3, 0.4, 0.5,
+                                                   1.0, 2.0, 3.0, 5.0, 10.0, 15.0, 20.0, 25.0,
+                                                   30.0, 35.0, 40.0, 45.0],
+                          },
+                          source_folder="radius_50",
+                          overwrite=True,)
 
     # test, sr = trumpet_sound(frequency=440.1, bitrate=44100, plot=False, normalize=False)
     # write(os.path.join(OUTPUT_DIR, "trumpet_pure_440+1.wav"), sr, test)

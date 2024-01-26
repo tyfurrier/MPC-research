@@ -3,10 +3,12 @@ name = "MPC-research"
 version = "0.0.1"
 
 dependencies = [
+    "PySimpleGUIWeb",
     "pysimplegui",
     "numpy",
     "librosa",
     "matplotlib",
+    "pandas",
     "scipy",
     "playsound",
     "pygame",

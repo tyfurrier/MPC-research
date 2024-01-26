@@ -21,6 +21,7 @@ def _custom_write(path: str,
             os.remove(path)
         else:
             raise FileExistsError(f"{path} exists")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     write(path, sr, wave)
 
 

@@ -85,11 +85,16 @@ audio_player_window = sg.Window('Audio Player', layout, finalize=True,
 pygame.init()
 
 
-def get_random_sound(force_spread: int = None):
+def get_random_sound(force_spread: float = None):
     spread = random.randint(0, 499) if force_spread is None else force_spread
-    return os.path.join(OUTPUT_DIR, "radius_50", spread_file_naming(radius=spread/10,
+    return os.path.join(OUTPUT_DIR, "radius_25", spread_file_naming(radius=spread/10,
                                                                     part=Decomposition.FULL,
                                                                     ))
+
+
+def random_binary_search(min, max):
+    pass  # todo: implement
+
 
 def get_comparison() -> tuple:
     ratio = random.randint(0, 5000) / 1000

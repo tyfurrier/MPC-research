@@ -1,5 +1,0 @@
-    "pysimplegui",
-    "numpy",
-    "librosa",
-    "matplotlib",
-    "scipy"
